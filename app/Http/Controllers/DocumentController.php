@@ -1,0 +1,84 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Services\GoogleDriveService;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+
+class DocumentController extends Controller
+{
+    public function index(Request $request, GoogleDriveService $driveService)
+    {
+        $driveId = $request->query('drive_id');
+        $folderId = $request->query('folder_id');
+        $sharedDrives = [];
+
+        $selectedDrive = null;
+        $files = [];
+        $folderBreadcrumbs = [];
+        $canUpload = false;
+
+        if ($driveId) {
+            $selectedDrive = $driveService->getSharedDrive($driveId);
+
+            if ($selectedDrive) {
+                $files = $driveService->listFiles($driveId, $folderId);
+                $folderBreadcrumbs = $driveService->getFolderBreadcrumbs($driveId, $folderId);
+                $canUpload = $driveService->canUploadToLocation($driveId, $folderId);
+            }
+        } else {
+            $sharedDrives = $driveService->listSharedDrives('DMS');
+        }
+
+        return Inertia::render('documents/index', [
+            'sharedDrives' => $sharedDrives,
+            'selectedDrive' => $selectedDrive,
+            'canUpload' => $canUpload,
+            'files' => $files,
+            'folderBreadcrumbs' => $folderBreadcrumbs,
+        ]);
+    }
+
+    public function upload(Request $request, GoogleDriveService $driveService)
+    {
+        $validated = $request->validate([
+            'drive_id' => ['required', 'string'],
+            'folder_id' => ['nullable', 'string'],
+            'file' => ['required', 'file', 'max:102400'],
+        ]);
+
+        $drive = $driveService->getSharedDrive($validated['drive_id']);
+
+        if (!$drive) {
+            return redirect()->route('documents.index')->with('error', 'Shared Drive tidak ditemukan atau tidak bisa diakses.');
+        }
+
+        if (!$driveService->canUploadToLocation($validated['drive_id'], $validated['folder_id'] ?? null)) {
+            return redirect()
+                ->route('documents.index', [
+                    'drive_id' => $validated['drive_id'],
+                    'folder_id' => $validated['folder_id'] ?? null,
+                ])
+                ->with('error', 'Anda tidak memiliki izin upload ke folder ini.');
+        }
+
+        try {
+            $driveService->uploadFile($validated['drive_id'], $validated['folder_id'] ?? null, $validated['file']);
+        } catch (\Throwable $exception) {
+            return redirect()
+                ->route('documents.index', [
+                    'drive_id' => $validated['drive_id'],
+                    'folder_id' => $validated['folder_id'] ?? null,
+                ])
+                ->with('error', 'Upload gagal. Silakan coba lagi.');
+        }
+
+        return redirect()
+            ->route('documents.index', [
+                'drive_id' => $validated['drive_id'],
+                'folder_id' => $validated['folder_id'] ?? null,
+            ])
+            ->with('success', 'Upload selesai. File berhasil ditambahkan.');
+    }
+}
