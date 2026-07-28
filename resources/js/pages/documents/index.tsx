@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
-import { COLOR_PRIMARY } from '@/lib/utils';
+import { COLOR_PRIMARY, formatSize } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { Download, ExternalLink, File, FileText, Folder, Image as ImageIcon, LoaderCircle, Upload } from 'lucide-react';
@@ -94,33 +94,6 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
             hour: '2-digit',
             minute: '2-digit',
         }).format(date);
-    };
-
-    const formatSize = (sizeInBytes?: string) => {
-        if (!sizeInBytes) {
-            return '-';
-        }
-
-        const bytes = Number(sizeInBytes);
-
-        if (!Number.isFinite(bytes) || bytes < 0) {
-            return '-';
-        }
-
-        if (bytes < 1024) {
-            return `${bytes} B`;
-        }
-
-        const units = ['KB', 'MB', 'GB', 'TB'];
-        let value = bytes / 1024;
-        let unitIndex = 0;
-
-        while (value >= 1024 && unitIndex < units.length - 1) {
-            value /= 1024;
-            unitIndex += 1;
-        }
-
-        return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
     };
 
     const getDownloadUrl = (file: DriveFile) => {
