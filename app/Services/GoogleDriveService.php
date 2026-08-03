@@ -46,7 +46,7 @@ class GoogleDriveService
             'driveId' => $sharedDriveId,
             'includeItemsFromAllDrives' => true, // Wajib diset buat Shared Drive
             'supportsAllDrives' => true, // Wajib diset buat Shared Drive
-            'fields' => 'files(id, name, mimeType, size, modifiedTime, webViewLink, webContentLink)',
+            'fields' => 'files(id, name, mimeType, size, modifiedTime, webViewLink, webContentLink, capabilities(canTrash, canDelete))',
             'orderBy' => 'folder, name'
         ];
 
@@ -184,5 +184,54 @@ class GoogleDriveService
             'supportsAllDrives' => true,
             'fields' => 'id, name, mimeType, size, modifiedTime, webViewLink, webContentLink',
         ]);
+    }
+
+    public function canDeleteFile($fileId)
+    {
+        if (!$fileId) {
+            return false;
+        }
+
+        try {
+            $file = $this->drive->files->get($fileId, [
+                'supportsAllDrives' => true,
+                'fields' => 'id, capabilities(canTrash, canDelete)',
+            ]);
+
+            $capabilities = $file->getCapabilities();
+
+            return (bool) ($capabilities?->getCanTrash() || $capabilities?->getCanDelete());
+        } catch (\Throwable $exception) {
+            return false;
+        }
+    }
+
+    public function deleteFile($fileId)
+    {
+        $file = $this->drive->files->get($fileId, [
+            'supportsAllDrives' => true,
+            'fields' => 'id, capabilities(canTrash, canDelete)',
+        ]);
+
+        $capabilities = $file->getCapabilities();
+        $canTrash = (bool) $capabilities?->getCanTrash();
+        $canDelete = (bool) $capabilities?->getCanDelete();
+
+        if ($canTrash) {
+            return $this->drive->files->update($fileId, new DriveFile([
+                'trashed' => true,
+            ]), [
+                'supportsAllDrives' => true,
+                'fields' => 'id, trashed',
+            ]);
+        }
+
+        if ($canDelete) {
+            return $this->drive->files->delete($fileId, [
+                'supportsAllDrives' => true,
+            ]);
+        }
+
+        throw new \RuntimeException('User has no permission to delete or trash this file.');
     }
 }

@@ -15,6 +15,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('documents', [DocumentController::class, 'index'])->name('documents.index');
     Route::post('documents/upload', [DocumentController::class, 'upload'])->name('documents.upload');
+    Route::delete('documents/{fileId}', [DocumentController::class, 'destroy'])->name('documents.destroy');
 });
 
 require __DIR__ . '/settings.php';

@@ -23,7 +23,20 @@ class DocumentController extends Controller
             $selectedDrive = $driveService->getSharedDrive($driveId);
 
             if ($selectedDrive) {
-                $files = $driveService->listFiles($driveId, $folderId);
+                $files = array_map(function ($file) {
+                    $capabilities = $file->getCapabilities();
+
+                    return [
+                        'id' => $file->getId(),
+                        'name' => $file->getName(),
+                        'mimeType' => $file->getMimeType(),
+                        'size' => $file->getSize(),
+                        'modifiedTime' => $file->getModifiedTime(),
+                        'webViewLink' => $file->getWebViewLink(),
+                        'webContentLink' => $file->getWebContentLink(),
+                        'canDelete' => (bool) ($capabilities?->getCanTrash() || $capabilities?->getCanDelete()),
+                    ];
+                }, $driveService->listFiles($driveId, $folderId));
                 $folderBreadcrumbs = $driveService->getFolderBreadcrumbs($driveId, $folderId);
                 $canUpload = $driveService->canUploadToLocation($driveId, $folderId);
             }
@@ -80,5 +93,48 @@ class DocumentController extends Controller
                 'folder_id' => $validated['folder_id'] ?? null,
             ])
             ->with('success', 'Upload selesai. File berhasil ditambahkan.');
+    }
+
+    public function destroy(Request $request, GoogleDriveService $driveService, string $fileId)
+    {
+        $validated = $request->validate([
+            'drive_id' => ['required', 'string'],
+            'folder_id' => ['nullable', 'string'],
+        ]);
+
+        $drive = $driveService->getSharedDrive($validated['drive_id']);
+
+        if (!$drive) {
+            return redirect()->route('documents.index')->with('error', 'Shared Drive tidak ditemukan atau tidak bisa diakses.');
+        }
+
+        if (!$driveService->canDeleteFile($fileId)) {
+            return redirect()
+                ->route('documents.index', [
+                    'drive_id' => $validated['drive_id'],
+                    'folder_id' => $validated['folder_id'] ?? null,
+                ])
+                ->with('error', 'Anda tidak memiliki izin untuk menghapus file ini.');
+        }
+
+        try {
+            $driveService->deleteFile($fileId);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return redirect()
+                ->route('documents.index', [
+                    'drive_id' => $validated['drive_id'],
+                    'folder_id' => $validated['folder_id'] ?? null,
+                ])
+                ->with('error', 'Hapus file gagal. Silakan coba lagi.');
+        }
+
+        return redirect()
+            ->route('documents.index', [
+                'drive_id' => $validated['drive_id'],
+                'folder_id' => $validated['folder_id'] ?? null,
+            ])
+            ->with('success', 'File berhasil dihapus.');
     }
 }

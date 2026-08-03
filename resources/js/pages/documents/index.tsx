@@ -7,9 +7,9 @@ import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { COLOR_PRIMARY, formatSize } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
-import { Download, ExternalLink, File, FileText, Folder, Image as ImageIcon, LoaderCircle, Upload } from 'lucide-react';
-import { FormEvent, useMemo, useState } from 'react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Download, ExternalLink, File, FileText, Folder, Image as ImageIcon, LoaderCircle, Trash2, Upload, X } from 'lucide-react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 interface DriveFile {
     id: string;
@@ -19,6 +19,7 @@ interface DriveFile {
     modifiedTime: string;
     webViewLink: string;
     webContentLink?: string;
+    canDelete: boolean;
 }
 
 interface FolderBreadcrumb {
@@ -59,8 +60,12 @@ const breadcrumbs: BreadcrumbItem[] = [
 export default function Index({ sharedDrives = [], selectedDrive = null, canUpload = false, files, folderBreadcrumbs = [] }: IndexProps) {
     const { flash } = usePage<PageProps>().props;
     const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+    const [filePendingDelete, setFilePendingDelete] = useState<DriveFile | null>(null);
+    const [isDragOver, setIsDragOver] = useState(false);
+    const dragDepthRef = useRef(0);
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'starting' | 'success' | 'error'>('idle');
     const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+    const [dismissedAlertKey, setDismissedAlertKey] = useState<string | null>(null);
 
     const currentFolderId = useMemo(() => {
         if (folderBreadcrumbs.length === 0) {
@@ -78,6 +83,20 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
         drive_id: selectedDrive?.id ?? '',
         folder_id: currentFolderId ?? '',
         file: null,
+    });
+
+    const {
+        post: submitDelete,
+        setData: setDeleteData,
+        processing: deleteProcessing,
+    } = useForm<{
+        _method: 'delete';
+        drive_id: string;
+        folder_id: string;
+    }>({
+        _method: 'delete',
+        drive_id: selectedDrive?.id ?? '',
+        folder_id: currentFolderId ?? '',
     });
 
     const canOpenUploadDialog = Boolean(selectedDrive) && canUpload;
@@ -121,6 +140,76 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
     const activeFolderName = folderBreadcrumbs.length > 0 ? folderBreadcrumbs[folderBreadcrumbs.length - 1].name : selectedDrive?.name;
     const isDriveRootView = !selectedDrive;
 
+    const getSuccessTitle = (message: string) => {
+        const normalized = message.toLowerCase();
+
+        if (normalized.includes('hapus')) {
+            return 'Hapus selesai';
+        }
+
+        if (normalized.includes('upload')) {
+            return 'Upload selesai';
+        }
+
+        return 'Berhasil';
+    };
+
+    const inlineAlert = useMemo(() => {
+        if (uploadStatus === 'error' && uploadMessage && !isUploadDialogOpen) {
+            return {
+                key: `upload-error:${uploadMessage}`,
+                title: 'Upload gagal',
+                message: uploadMessage,
+                variant: 'destructive' as const,
+                className: '',
+            };
+        }
+
+        if (uploadStatus === 'starting' && uploadMessage && !isUploadDialogOpen) {
+            return {
+                key: `upload-starting:${uploadMessage}`,
+                title: 'Upload sedang berjalan',
+                message: uploadMessage,
+                variant: 'default' as const,
+                className: '',
+            };
+        }
+
+        if (flash?.error) {
+            return {
+                key: `flash-error:${flash.error}`,
+                title: 'Terjadi kesalahan',
+                message: flash.error,
+                variant: 'destructive' as const,
+                className: '',
+            };
+        }
+
+        if (flash?.success) {
+            return {
+                key: `flash-success:${flash.success}`,
+                title: getSuccessTitle(flash.success),
+                message: flash.success,
+                variant: 'default' as const,
+                className: 'border-emerald-300 bg-emerald-50 text-emerald-800',
+            };
+        }
+
+        if (uploadStatus === 'success' && uploadMessage && !isUploadDialogOpen) {
+            return {
+                key: `upload-success:${uploadMessage}`,
+                title: 'Upload selesai',
+                message: uploadMessage,
+                variant: 'default' as const,
+                className: 'border-emerald-300 bg-emerald-50 text-emerald-800',
+            };
+        }
+
+        return null;
+    }, [uploadStatus, uploadMessage, isUploadDialogOpen, flash?.error, flash?.success]);
+
+    const canShowInlineAlert = inlineAlert !== null && inlineAlert.key !== dismissedAlertKey;
+
     const resetUploadForm = () => {
         clearErrors();
         reset('file');
@@ -144,11 +233,144 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
             onSuccess: () => {
                 setIsUploadDialogOpen(false);
                 resetUploadForm();
+                setUploadStatus('success');
+                setUploadMessage('Upload selesai. File berhasil ditambahkan.');
             },
             onError: () => {
                 setUploadStatus('error');
                 setUploadMessage('Periksa file lalu coba lagi.');
             },
+        });
+    };
+
+    const uploadDroppedFile = (droppedFile: File) => {
+        if (!selectedDrive || !canUpload) {
+            setUploadStatus('error');
+            setUploadMessage(uploadDisabledMessage);
+            return;
+        }
+
+        setUploadStatus('starting');
+        setUploadMessage(`Mengunggah ${droppedFile.name} ke folder aktif.`);
+
+        router.post(
+            route('documents.upload'),
+            {
+                drive_id: selectedDrive.id,
+                folder_id: currentFolderId ?? '',
+                file: droppedFile,
+            },
+            {
+                forceFormData: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    setUploadStatus('success');
+                    setUploadMessage('Upload selesai. File berhasil ditambahkan.');
+                    resetUploadForm();
+                },
+                onError: () => {
+                    setUploadStatus('error');
+                    setUploadMessage('Upload dari drag-and-drop gagal. Silakan coba lagi.');
+                },
+            },
+        );
+    };
+
+    useEffect(() => {
+        const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
+
+        const handleWindowDragEnter = (event: DragEvent) => {
+            if (!hasFiles(event)) {
+                return;
+            }
+
+            event.preventDefault();
+            dragDepthRef.current += 1;
+
+            if (!canOpenUploadDialog || processing) {
+                return;
+            }
+
+            setIsDragOver(true);
+        };
+
+        const handleWindowDragOver = (event: DragEvent) => {
+            if (!hasFiles(event)) {
+                return;
+            }
+
+            event.preventDefault();
+            if (event.dataTransfer) {
+                event.dataTransfer.dropEffect = canOpenUploadDialog && !processing ? 'copy' : 'none';
+            }
+        };
+
+        const handleWindowDragLeave = (event: DragEvent) => {
+            if (!hasFiles(event)) {
+                return;
+            }
+
+            event.preventDefault();
+            dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+
+            if (dragDepthRef.current === 0) {
+                setIsDragOver(false);
+            }
+        };
+
+        const handleWindowDrop = (event: DragEvent) => {
+            if (!hasFiles(event)) {
+                return;
+            }
+
+            event.preventDefault();
+            dragDepthRef.current = 0;
+            setIsDragOver(false);
+
+            if (!canOpenUploadDialog || processing) {
+                setUploadStatus('error');
+                setUploadMessage(uploadDisabledMessage);
+                return;
+            }
+
+            const droppedFile = event.dataTransfer?.files?.[0];
+
+            if (!droppedFile) {
+                setUploadStatus('error');
+                setUploadMessage('Tidak ada file yang terdeteksi dari drag-and-drop.');
+                return;
+            }
+
+            uploadDroppedFile(droppedFile);
+        };
+
+        window.addEventListener('dragenter', handleWindowDragEnter);
+        window.addEventListener('dragover', handleWindowDragOver);
+        window.addEventListener('dragleave', handleWindowDragLeave);
+        window.addEventListener('drop', handleWindowDrop);
+
+        return () => {
+            window.removeEventListener('dragenter', handleWindowDragEnter);
+            window.removeEventListener('dragover', handleWindowDragOver);
+            window.removeEventListener('dragleave', handleWindowDragLeave);
+            window.removeEventListener('drop', handleWindowDrop);
+        };
+    }, [canOpenUploadDialog, processing, uploadDisabledMessage, selectedDrive, currentFolderId, canUpload]);
+
+    const confirmDelete = () => {
+        if (!selectedDrive || !filePendingDelete) {
+            return;
+        }
+
+        setDeleteData({
+            _method: 'delete',
+            drive_id: selectedDrive.id,
+            folder_id: currentFolderId ?? '',
+        });
+
+        submitDelete(route('documents.destroy', { fileId: filePendingDelete.id }), {
+            preserveScroll: true,
+            onSuccess: () => setFilePendingDelete(null),
         });
     };
 
@@ -288,30 +510,57 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
                         </Dialog>
                     </div>
 
-                    {uploadStatus === 'error' && uploadMessage && !isUploadDialogOpen && (
+                    {canShowInlineAlert && inlineAlert && (
                         <div className="mb-4">
-                            <Alert variant="destructive">
-                                <AlertTitle>Upload tidak tersedia</AlertTitle>
-                                <AlertDescription>{uploadMessage}</AlertDescription>
+                            <Alert variant={inlineAlert.variant} className={inlineAlert.className}>
+                                <button
+                                    type="button"
+                                    onClick={() => setDismissedAlertKey(inlineAlert.key)}
+                                    className="absolute top-3 right-3 rounded-md p-1 text-current/70 transition hover:bg-black/5 hover:text-current"
+                                    aria-label="Tutup notifikasi"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                                <AlertTitle>{inlineAlert.title}</AlertTitle>
+                                <AlertDescription>{inlineAlert.message}</AlertDescription>
                             </Alert>
                         </div>
                     )}
 
-                    {flash?.success && (
-                        <div className="mb-4">
-                            <Alert>
-                                <AlertTitle>Upload selesai</AlertTitle>
-                                <AlertDescription>{flash.success}</AlertDescription>
-                            </Alert>
-                        </div>
-                    )}
+                    <Dialog open={Boolean(filePendingDelete)} onOpenChange={(open) => !open && setFilePendingDelete(null)}>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Hapus file</DialogTitle>
+                                <DialogDescription>
+                                    {filePendingDelete
+                                        ? `File ${filePendingDelete.name} akan dihapus dari Google Drive. Tindakan ini tidak dapat dibatalkan.`
+                                        : 'Pilih file yang ingin dihapus.'}
+                                </DialogDescription>
+                            </DialogHeader>
 
-                    {flash?.error && (
-                        <div className="mb-4">
                             <Alert variant="destructive">
-                                <AlertTitle>Terjadi kesalahan</AlertTitle>
-                                <AlertDescription>{flash.error}</AlertDescription>
+                                <AlertTitle>Peringatan</AlertTitle>
+                                <AlertDescription>Pastikan file yang dipilih memang ingin dihapus sebelum melanjutkan.</AlertDescription>
                             </Alert>
+
+                            <DialogFooter>
+                                <Button type="button" variant="secondary" onClick={() => setFilePendingDelete(null)} disabled={deleteProcessing}>
+                                    Batal
+                                </Button>
+                                <Button type="button" variant="destructive" onClick={confirmDelete} disabled={deleteProcessing || !filePendingDelete}>
+                                    {deleteProcessing && <LoaderCircle className="h-4 w-4 animate-spin" />}
+                                    Hapus
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    {isDragOver && (
+                        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-sky-500/10 p-4">
+                            <div className="w-full max-w-xl rounded-2xl border-2 border-dashed border-sky-500 bg-white/95 px-6 py-8 text-center shadow-xl backdrop-blur-sm">
+                                <p className="text-base font-semibold text-slate-800">Lepaskan file untuk upload ke folder aktif</p>
+                                <p className="mt-1 text-sm text-slate-500">Tujuan upload: {activeFolderName ?? 'Folder aktif'}</p>
+                            </div>
                         </div>
                     )}
 
@@ -469,6 +718,22 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
                                                                 Unduh
                                                             </a>
                                                         )}
+
+                                                        <Button
+                                                            type="button"
+                                                            variant="destructive"
+                                                            size="sm"
+                                                            disabled={!file.canDelete || deleteProcessing}
+                                                            title={
+                                                                file.canDelete
+                                                                    ? `Hapus ${file.name}`
+                                                                    : 'Anda tidak memiliki izin untuk menghapus file ini.'
+                                                            }
+                                                            onClick={() => setFilePendingDelete(file)}
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                            Hapus
+                                                        </Button>
                                                     </div>
                                                 </td>
                                             </tr>
