@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DocumentMetadata;
 use App\Services\GoogleDriveService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -59,6 +60,8 @@ class DocumentController extends Controller
             'drive_id' => ['required', 'string'],
             'folder_id' => ['nullable', 'string'],
             'file' => ['required', 'file', 'max:102400'],
+            'category' => ['required', 'string'],
+            'status' => ['required', 'string'],
         ]);
 
         $drive = $driveService->getSharedDrive($validated['drive_id']);
@@ -77,7 +80,14 @@ class DocumentController extends Controller
         }
 
         try {
-            $driveService->uploadFile($validated['drive_id'], $validated['folder_id'] ?? null, $validated['file']);
+            $uploadedFileId = $driveService->uploadFile($validated['drive_id'], $validated['folder_id'] ?? null, $validated['file']);
+
+            DocumentMetadata::create([
+                'google_file_id' => $uploadedFileId,
+                'document_number' => null,
+                'category' => $validated['category'],
+                'status' => $validated['status'],
+            ]);
         } catch (\Throwable $exception) {
             return redirect()
                 ->route('documents.index', [
@@ -92,6 +102,7 @@ class DocumentController extends Controller
                 'drive_id' => $validated['drive_id'],
                 'folder_id' => $validated['folder_id'] ?? null,
             ])
+            ->with('uploaded_file_id', $uploadedFileId)
             ->with('success', 'Upload selesai. File berhasil ditambahkan.');
     }
 
@@ -119,6 +130,8 @@ class DocumentController extends Controller
 
         try {
             $driveService->deleteFile($fileId);
+
+            DocumentMetadata::where('google_file_id', $fileId)->delete();
         } catch (\Throwable $exception) {
             report($exception);
 

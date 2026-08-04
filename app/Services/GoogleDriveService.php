@@ -168,7 +168,7 @@ class GoogleDriveService
         return array_reverse($breadcrumbs);
     }
 
-    public function uploadFile($sharedDriveId, $folderId, UploadedFile $uploadedFile)
+    public function uploadFile($sharedDriveId, $folderId, UploadedFile $uploadedFile): string
     {
         $parentId = $folderId ?? $sharedDriveId;
 
@@ -177,13 +177,15 @@ class GoogleDriveService
             'parents' => [$parentId],
         ]);
 
-        return $this->drive->files->create($driveFileMetadata, [
+        $createdFile = $this->drive->files->create($driveFileMetadata, [
             'data' => file_get_contents($uploadedFile->getRealPath()),
             'mimeType' => $uploadedFile->getMimeType(),
             'uploadType' => 'multipart',
             'supportsAllDrives' => true,
             'fields' => 'id, name, mimeType, size, modifiedTime, webViewLink, webContentLink',
         ]);
+
+        return (string) $createdFile->getId();
     }
 
     public function canDeleteFile($fileId)

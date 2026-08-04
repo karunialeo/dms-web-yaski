@@ -6,21 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { COLOR_PRIMARY, formatSize } from '@/lib/utils';
-import { type BreadcrumbItem } from '@/types';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { DriveFile, type BreadcrumbItem } from '@/types';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { Download, ExternalLink, File, FileText, Folder, Image as ImageIcon, LoaderCircle, Trash2, Upload, X } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-
-interface DriveFile {
-    id: string;
-    name: string;
-    mimeType: string;
-    size?: string;
-    modifiedTime: string;
-    webViewLink: string;
-    webContentLink?: string;
-    canDelete: boolean;
-}
 
 interface FolderBreadcrumb {
     id: string;
@@ -43,6 +32,7 @@ interface IndexProps {
 interface FlashMessage {
     success?: string;
     error?: string;
+    uploaded_file_id?: string;
 }
 
 interface PageProps {
@@ -63,6 +53,7 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
     const [filePendingDelete, setFilePendingDelete] = useState<DriveFile | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
     const dragDepthRef = useRef(0);
+    const [uploadOrigin, setUploadOrigin] = useState<'button' | 'drag'>('button');
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'starting' | 'success' | 'error'>('idle');
     const [uploadMessage, setUploadMessage] = useState<string | null>(null);
     const [dismissedAlertKey, setDismissedAlertKey] = useState<string | null>(null);
@@ -79,10 +70,14 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
         drive_id: string;
         folder_id: string;
         file: File | null;
+        category: string;
+        status: string;
     }>({
         drive_id: selectedDrive?.id ?? '',
         folder_id: currentFolderId ?? '',
         file: null,
+        category: 'general',
+        status: 'draft',
     });
 
     const {
@@ -211,8 +206,13 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
     const canShowInlineAlert = inlineAlert !== null && inlineAlert.key !== dismissedAlertKey;
 
     const resetUploadForm = () => {
-        clearErrors();
-        reset('file');
+        clearErrors('file', 'category', 'status');
+        reset('file', 'category', 'status');
+    };
+
+    const handleFileSelected = (selectedFile: File | null) => {
+        setData('file', selectedFile);
+        setUploadOrigin('button');
     };
 
     const submitUpload = (event: FormEvent<HTMLFormElement>) => {
@@ -230,7 +230,12 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
         post(route('documents.upload'), {
             forceFormData: true,
             preserveScroll: true,
-            onSuccess: () => {
+            onSuccess: (page) => {
+                const uploadedFileId = (page.props.flash as FlashMessage | undefined)?.uploaded_file_id;
+                if (uploadedFileId) {
+                    console.log('[Documents] Uploaded Google Drive file ID:', uploadedFileId);
+                }
+
                 setIsUploadDialogOpen(false);
                 resetUploadForm();
                 setUploadStatus('success');
@@ -241,39 +246,6 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
                 setUploadMessage('Periksa file lalu coba lagi.');
             },
         });
-    };
-
-    const uploadDroppedFile = (droppedFile: File) => {
-        if (!selectedDrive || !canUpload) {
-            setUploadStatus('error');
-            setUploadMessage(uploadDisabledMessage);
-            return;
-        }
-
-        setUploadStatus('starting');
-        setUploadMessage(`Mengunggah ${droppedFile.name} ke folder aktif.`);
-
-        router.post(
-            route('documents.upload'),
-            {
-                drive_id: selectedDrive.id,
-                folder_id: currentFolderId ?? '',
-                file: droppedFile,
-            },
-            {
-                forceFormData: true,
-                preserveScroll: true,
-                onSuccess: () => {
-                    setUploadStatus('success');
-                    setUploadMessage('Upload selesai. File berhasil ditambahkan.');
-                    resetUploadForm();
-                },
-                onError: () => {
-                    setUploadStatus('error');
-                    setUploadMessage('Upload dari drag-and-drop gagal. Silakan coba lagi.');
-                },
-            },
-        );
     };
 
     useEffect(() => {
@@ -341,7 +313,11 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
                 return;
             }
 
-            uploadDroppedFile(droppedFile);
+            setUploadOrigin('drag');
+            setData('file', droppedFile);
+            setUploadStatus('idle');
+            setUploadMessage(null);
+            setIsUploadDialogOpen(true);
         };
 
         window.addEventListener('dragenter', handleWindowDragEnter);
@@ -420,10 +396,16 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
                                 if (!open) {
                                     resetUploadForm();
                                 } else {
+                                    setUploadOrigin('button');
                                     setUploadStatus('idle');
                                     setUploadMessage(null);
-                                    setData('drive_id', selectedDrive?.id ?? '');
-                                    setData('folder_id', currentFolderId ?? '');
+                                    setData({
+                                        drive_id: selectedDrive?.id ?? '',
+                                        folder_id: currentFolderId ?? '',
+                                        file: null,
+                                        category: 'general',
+                                        status: 'draft',
+                                    });
                                 }
                             }}
                         >
@@ -479,16 +461,64 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
                                 <form className="space-y-4" onSubmit={submitUpload}>
                                     <div className="grid gap-2">
                                         <Label htmlFor="document-file">File</Label>
-                                        <Input
-                                            id="document-file"
-                                            type="file"
-                                            onChange={(event) => {
-                                                const selectedFile = event.target.files?.[0] ?? null;
-                                                setData('file', selectedFile);
-                                            }}
-                                            required
-                                        />
+                                        {uploadOrigin === 'button' ? (
+                                            <Input
+                                                id="document-file"
+                                                type="file"
+                                                onChange={(event) => {
+                                                    const selectedFile = event.target.files?.[0] ?? null;
+                                                    handleFileSelected(selectedFile);
+                                                }}
+                                                required
+                                            />
+                                        ) : (
+                                            <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+                                                {data.file ? (
+                                                    <div className="space-y-1">
+                                                        <p className="font-medium text-slate-800">{data.file.name}</p>
+                                                        <p className="text-xs text-slate-500">
+                                                            File dari drag-and-drop sudah siap. Isi kategori dan status lalu upload.
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <p>File akan muncul di sini setelah di-drop.</p>
+                                                )}
+                                            </div>
+                                        )}
                                         <InputError message={errors.file} />
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="document-category">Kategori</Label>
+                                        <select
+                                            id="document-category"
+                                            className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                                            value={data.category}
+                                            onChange={(event) => setData('category', event.target.value)}
+                                            required
+                                        >
+                                            <option value="general">General</option>
+                                            <option value="finance">Finance</option>
+                                            <option value="hc">Human Capital</option>
+                                            <option value="ict">ICT</option>
+                                        </select>
+                                        <InputError message={errors.category} />
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="document-status">Status</Label>
+                                        <select
+                                            id="document-status"
+                                            className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                                            value={data.status}
+                                            onChange={(event) => setData('status', event.target.value)}
+                                            required
+                                        >
+                                            <option value="draft">draft</option>
+                                            <option value="review">review</option>
+                                            <option value="approved">approved</option>
+                                        </select>
+                                        <InputError message={errors.status} />
                                     </div>
 
                                     <DialogFooter>
