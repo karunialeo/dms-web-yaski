@@ -38,3 +38,14 @@ export interface User {
     updated_at: string;
     [key: string]: unknown; // This allows for additional properties...
 }
+
+export interface DriveFile {
+    id: string;
+    name: string;
+    mimeType: string;
+    size?: string;
+    modifiedTime: string;
+    webViewLink: string;
+    webContentLink?: string;
+    canDelete: boolean;
+}
