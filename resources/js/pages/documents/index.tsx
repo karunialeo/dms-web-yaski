@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { COLOR_PRIMARY, formatSize } from '@/lib/utils';
 import { DriveFile, type BreadcrumbItem } from '@/types';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { Download, ExternalLink, File, FileText, Folder, Image as ImageIcon, LoaderCircle, Trash2, Upload, X } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -27,6 +27,11 @@ interface IndexProps {
     canUpload?: boolean;
     files: DriveFile[];
     folderBreadcrumbs?: FolderBreadcrumb[];
+    filters?: {
+        search?: string;
+        category?: string;
+        status?: string;
+    };
 }
 
 interface FlashMessage {
@@ -47,8 +52,11 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function Index({ sharedDrives = [], selectedDrive = null, canUpload = false, files, folderBreadcrumbs = [] }: IndexProps) {
+export default function Index({ sharedDrives = [], selectedDrive = null, canUpload = false, files, folderBreadcrumbs = [], filters }: IndexProps) {
     const { flash } = usePage<PageProps>().props;
+    const [search, setSearch] = useState(filters?.search ?? '');
+    const [category, setCategory] = useState(filters?.category ?? 'all');
+    const [status, setStatus] = useState(filters?.status ?? 'all');
     const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
     const [filePendingDelete, setFilePendingDelete] = useState<DriveFile | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
@@ -134,6 +142,23 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
 
     const activeFolderName = folderBreadcrumbs.length > 0 ? folderBreadcrumbs[folderBreadcrumbs.length - 1].name : selectedDrive?.name;
     const isDriveRootView = !selectedDrive;
+
+    const applyFilters = () => {
+        router.get(
+            route('documents.index'),
+            {
+                drive_id: selectedDrive?.id,
+                folder_id: currentFolderId ?? undefined,
+                search: search || undefined,
+                category: category === 'all' ? undefined : category,
+                status: status === 'all' ? undefined : status,
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+            },
+        );
+    };
 
     const getSuccessTitle = (message: string) => {
         const normalized = message.toLowerCase();
@@ -372,6 +397,50 @@ export default function Index({ sharedDrives = [], selectedDrive = null, canUplo
             <div className="py-12">
                 <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
                     {/* Header Action (Bisa buat nambah tombol Upload nanti) */}
+                    <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="grid gap-3 md:grid-cols-4">
+                            <Input
+                                type="text"
+                                placeholder="Cari dokumen..."
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                className="border-input h-10 rounded-md"
+                            />
+
+                            <select
+                                value={category}
+                                onChange={(event) => setCategory(event.target.value)}
+                                className="border-input bg-background ring-offset-background focus-visible:ring-ring h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                            >
+                                <option value="all">All Category</option>
+                                <option value="general">General</option>
+                                <option value="finance">Finance</option>
+                                <option value="hc">HC</option>
+                                <option value="ict">ICT</option>
+                            </select>
+
+                            <select
+                                value={status}
+                                onChange={(event) => setStatus(event.target.value)}
+                                className="border-input bg-background ring-offset-background focus-visible:ring-ring h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                            >
+                                <option value="all">All Status</option>
+                                <option value="draft">draft</option>
+                                <option value="review">review</option>
+                                <option value="approved">approved</option>
+                            </select>
+
+                            <Button
+                                type="button"
+                                onClick={applyFilters}
+                                className="inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white"
+                                style={{ backgroundColor: COLOR_PRIMARY }}
+                            >
+                                Cari
+                            </Button>
+                        </div>
+                    </div>
+
                     <div className="mb-6 flex items-center justify-between">
                         <div>
                             <h3 className="text-lg font-medium text-slate-700">Daftar Dokumen</h3>

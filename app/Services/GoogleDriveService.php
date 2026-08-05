@@ -35,20 +35,31 @@ class GoogleDriveService
         $this->drive = new Drive($this->client);
     }
 
-    public function listFiles($sharedDriveId, $folderId = null)
+    public function listFiles($sharedDriveId, $folderId = null, $searchKeyword = null)
     {
         // Kalo ga ada folderId spesifik, tampilin root dari Shared Drive
-        $parentId = $folderId ?? $sharedDriveId;
+        $parentId = !empty($folderId) ? $folderId : $sharedDriveId;
+        $hasSearchKeyword = !empty(trim((string) $searchKeyword));
+
+        $query = "'{$parentId}' in parents and trashed = false";
+
+        if ($hasSearchKeyword) {
+            $escapedKeyword = str_replace(['\\', "'"], ['\\\\', "\\'"], $searchKeyword);
+            $query .= " and fullText contains '{$escapedKeyword}'";
+        }
 
         $optParams = [
-            'q' => "'{$parentId}' in parents and trashed = false",
+            'q' => $query,
             'corpora' => 'drive', // Wajib diset buat Shared Drive
             'driveId' => $sharedDriveId,
             'includeItemsFromAllDrives' => true, // Wajib diset buat Shared Drive
             'supportsAllDrives' => true, // Wajib diset buat Shared Drive
             'fields' => 'files(id, name, mimeType, size, modifiedTime, webViewLink, webContentLink, capabilities(canTrash, canDelete))',
-            'orderBy' => 'folder, name'
         ];
+
+        if (!$hasSearchKeyword) {
+            $optParams['orderBy'] = 'folder, name';
+        }
 
         return $this->drive->files->listFiles($optParams)->getFiles();
     }

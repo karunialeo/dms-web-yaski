@@ -13,17 +13,65 @@ class DocumentController extends Controller
     {
         $driveId = $request->query('drive_id');
         $folderId = $request->query('folder_id');
+        $search = $request->query('search');
+        $category = $request->query('category');
+        $status = $request->query('status');
+
+        if ($folderId === '') {
+            $folderId = null;
+        }
+
+        if (is_string($search)) {
+            $search = trim($search);
+
+            if ($search === '') {
+                $search = null;
+            }
+        }
+
+        if ($category === 'all') {
+            $category = null;
+        }
+
+        if ($status === 'all') {
+            $status = null;
+        }
+
         $sharedDrives = [];
 
         $selectedDrive = null;
         $files = [];
         $folderBreadcrumbs = [];
         $canUpload = false;
+        $validGoogleFileIds = [];
+        $hasMetadataFilter = !empty($category) || !empty($status);
+
+        if ($hasMetadataFilter) {
+            $metadataQuery = DocumentMetadata::query();
+
+            if (!empty($category)) {
+                $metadataQuery->where('category', $category);
+            }
+
+            if (!empty($status)) {
+                $metadataQuery->where('status', $status);
+            }
+
+            $validGoogleFileIds = $metadataQuery->pluck('google_file_id')->toArray();
+        }
 
         if ($driveId) {
             $selectedDrive = $driveService->getSharedDrive($driveId);
 
             if ($selectedDrive) {
+                $driveFiles = $driveService->listFiles($driveId, $folderId, $search);
+
+                if ($hasMetadataFilter) {
+                    $driveFiles = array_filter($driveFiles, function ($file) use ($validGoogleFileIds) {
+                        return in_array($file->getId(), $validGoogleFileIds, true);
+                    });
+                }
+
                 $files = array_map(function ($file) {
                     $capabilities = $file->getCapabilities();
 
@@ -37,7 +85,7 @@ class DocumentController extends Controller
                         'webContentLink' => $file->getWebContentLink(),
                         'canDelete' => (bool) ($capabilities?->getCanTrash() || $capabilities?->getCanDelete()),
                     ];
-                }, $driveService->listFiles($driveId, $folderId));
+                }, $driveFiles);
                 $folderBreadcrumbs = $driveService->getFolderBreadcrumbs($driveId, $folderId);
                 $canUpload = $driveService->canUploadToLocation($driveId, $folderId);
             }
@@ -51,6 +99,11 @@ class DocumentController extends Controller
             'canUpload' => $canUpload,
             'files' => $files,
             'folderBreadcrumbs' => $folderBreadcrumbs,
+            'filters' => [
+                'search' => $search,
+                'category' => $category,
+                'status' => $status,
+            ],
         ]);
     }
 
