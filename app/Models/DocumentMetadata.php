@@ -14,6 +14,14 @@ class DocumentMetadata extends Model
         'google_file_id',
         'document_number',
         'category',
+        'department',
         'status',
+        'expired_at',
+        'pic_emails',
+    ];
+
+    protected $casts = [
+        'expired_at' => 'date',
+        'pic_emails' => 'array',
     ];
 }

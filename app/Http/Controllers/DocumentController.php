@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DocumentMetadata;
 use App\Services\GoogleDriveService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -15,7 +16,7 @@ class DocumentController extends Controller
         $folderId = $request->query('folder_id');
         $search = $request->query('search');
         $category = $request->query('category');
-        $status = $request->query('status');
+        $department = $request->query('department');
 
         if ($folderId === '') {
             $folderId = null;
@@ -33,8 +34,8 @@ class DocumentController extends Controller
             $category = null;
         }
 
-        if ($status === 'all') {
-            $status = null;
+        if ($department === 'all') {
+            $department = null;
         }
 
         $sharedDrives = [];
@@ -44,7 +45,8 @@ class DocumentController extends Controller
         $folderBreadcrumbs = [];
         $canUpload = false;
         $validGoogleFileIds = [];
-        $hasMetadataFilter = !empty($category) || !empty($status);
+        $hasMetadataFilter = !empty($category) || !empty($department);
+        $isGlobalSearch = !$driveId && !empty($search);
 
         if ($hasMetadataFilter) {
             $metadataQuery = DocumentMetadata::query();
@@ -53,8 +55,8 @@ class DocumentController extends Controller
                 $metadataQuery->where('category', $category);
             }
 
-            if (!empty($status)) {
-                $metadataQuery->where('status', $status);
+            if (!empty($department)) {
+                $metadataQuery->where('department', $department);
             }
 
             $validGoogleFileIds = $metadataQuery->pluck('google_file_id')->toArray();
@@ -89,6 +91,30 @@ class DocumentController extends Controller
                 $folderBreadcrumbs = $driveService->getFolderBreadcrumbs($driveId, $folderId);
                 $canUpload = $driveService->canUploadToLocation($driveId, $folderId);
             }
+        } elseif ($isGlobalSearch) {
+            $driveFiles = $driveService->searchFilesAcrossSharedDrives($search, 'DMS');
+
+            if ($hasMetadataFilter) {
+                $driveFiles = array_filter($driveFiles, function ($file) use ($validGoogleFileIds) {
+                    return in_array($file->getId(), $validGoogleFileIds, true);
+                });
+            }
+
+            $files = array_map(function ($file) {
+                $capabilities = $file->getCapabilities();
+
+                return [
+                    'id' => $file->getId(),
+                    'name' => $file->getName(),
+                    'mimeType' => $file->getMimeType(),
+                    'size' => $file->getSize(),
+                    'modifiedTime' => $file->getModifiedTime(),
+                    'webViewLink' => $file->getWebViewLink(),
+                    'webContentLink' => $file->getWebContentLink(),
+                    'canDelete' => (bool) ($capabilities?->getCanTrash() || $capabilities?->getCanDelete()),
+                    'driveId' => $file->getDriveId(),
+                ];
+            }, $driveFiles);
         } else {
             $sharedDrives = $driveService->listSharedDrives('DMS');
         }
@@ -99,10 +125,11 @@ class DocumentController extends Controller
             'canUpload' => $canUpload,
             'files' => $files,
             'folderBreadcrumbs' => $folderBreadcrumbs,
+            'isGlobalSearch' => $isGlobalSearch,
             'filters' => [
                 'search' => $search,
                 'category' => $category,
-                'status' => $status,
+                'department' => $department,
             ],
         ]);
     }
@@ -114,7 +141,10 @@ class DocumentController extends Controller
             'folder_id' => ['nullable', 'string'],
             'file' => ['required', 'file', 'max:102400'],
             'category' => ['required', 'string'],
+            'department' => ['required', 'string'],
             'status' => ['required', 'string'],
+            'expired_at' => ['nullable', 'date'],
+            'pic_emails' => ['nullable', 'string'],
         ]);
 
         $drive = $driveService->getSharedDrive($validated['drive_id']);
@@ -135,11 +165,19 @@ class DocumentController extends Controller
         try {
             $uploadedFileId = $driveService->uploadFile($validated['drive_id'], $validated['folder_id'] ?? null, $validated['file']);
 
+            $picEmails = null;
+            if (!empty($validated['pic_emails'])) {
+                $picEmails = array_map('trim', explode(',', $validated['pic_emails']));
+            }
+
             DocumentMetadata::create([
                 'google_file_id' => $uploadedFileId,
                 'document_number' => null,
                 'category' => $validated['category'],
+                'department' => $validated['department'],
                 'status' => $validated['status'],
+                'expired_at' => $validated['expired_at'] ?? null,
+                'pic_emails' => $picEmails,
             ]);
         } catch (\Throwable $exception) {
             return redirect()
@@ -157,6 +195,54 @@ class DocumentController extends Controller
             ])
             ->with('uploaded_file_id', $uploadedFileId)
             ->with('success', 'Upload selesai. File berhasil ditambahkan.');
+    }
+
+    public function storeFolder(Request $request, GoogleDriveService $driveService)
+    {
+        $validated = $request->validate([
+            'drive_id' => ['required', 'string'],
+            'folder_id' => ['nullable', 'string'],
+            'folder_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $drive = $driveService->getSharedDrive($validated['drive_id']);
+
+        if (!$drive) {
+            return redirect()->route('documents.index')->with('error', 'Shared Drive tidak ditemukan atau tidak bisa diakses.');
+        }
+
+        if (!$driveService->canUploadToLocation($validated['drive_id'], $validated['folder_id'] ?? null)) {
+            return redirect()
+                ->route('documents.index', [
+                    'drive_id' => $validated['drive_id'],
+                    'folder_id' => $validated['folder_id'] ?? null,
+                ])
+                ->with('error', 'Anda tidak memiliki izin untuk menambah folder di lokasi ini.');
+        }
+
+        try {
+            $driveService->createFolder(
+                $validated['drive_id'],
+                $validated['folder_id'] ?? null,
+                $validated['folder_name'],
+            );
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return redirect()
+                ->route('documents.index', [
+                    'drive_id' => $validated['drive_id'],
+                    'folder_id' => $validated['folder_id'] ?? null,
+                ])
+                ->with('error', 'Tambah folder gagal. Silakan coba lagi.');
+        }
+
+        return redirect()
+            ->route('documents.index', [
+                'drive_id' => $validated['drive_id'],
+                'folder_id' => $validated['folder_id'] ?? null,
+            ])
+            ->with('success', 'Folder berhasil ditambahkan.');
     }
 
     public function destroy(Request $request, GoogleDriveService $driveService, string $fileId)
@@ -202,5 +288,35 @@ class DocumentController extends Controller
                 'folder_id' => $validated['folder_id'] ?? null,
             ])
             ->with('success', 'File berhasil dihapus.');
+    }
+
+    public function expiringAlerts()
+    {
+        $thresholds = [365, 180, 90, 30, 14, 7];
+        $today = Carbon::now()->startOfDay();
+
+        $documents = DocumentMetadata::whereNotNull('expired_at')->get();
+
+        $results = [];
+
+        foreach ($documents as $document) {
+            $diffDays = (int) $today->diffInDays($document->expired_at, false);
+
+            if (in_array($diffDays, $thresholds, true)) {
+                $results[] = [
+                    'id' => $document->id,
+                    'google_file_id' => $document->google_file_id,
+                    'document_number' => $document->document_number,
+                    'category' => $document->category,
+                    'department' => $document->department,
+                    'status' => $document->status,
+                    'expired_at' => $document->expired_at->toDateString(),
+                    'pic_emails' => $document->pic_emails,
+                    'alert_type' => "{$diffDays} hari",
+                ];
+            }
+        }
+
+        return response()->json($results);
     }
 }

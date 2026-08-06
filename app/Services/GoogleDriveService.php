@@ -64,6 +64,41 @@ class GoogleDriveService
         return $this->drive->files->listFiles($optParams)->getFiles();
     }
 
+    public function searchFilesAcrossSharedDrives($searchKeyword, $namePrefix = null)
+    {
+        $hasSearchKeyword = !empty(trim((string) $searchKeyword));
+
+        if (!$hasSearchKeyword) {
+            return [];
+        }
+
+        $escapedKeyword = str_replace(['\\', "'"], ['\\\\', "\\'"], $searchKeyword);
+
+        $matchedFiles = [];
+
+        foreach ($this->listSharedDrives($namePrefix) as $sharedDrive) {
+            $response = $this->drive->files->listFiles([
+                'q' => "trashed = false and fullText contains '{$escapedKeyword}'",
+                'corpora' => 'drive',
+                'driveId' => $sharedDrive['id'],
+                'includeItemsFromAllDrives' => true,
+                'supportsAllDrives' => true,
+                'orderBy' => 'modifiedTime desc',
+                'fields' => 'files(id, name, mimeType, size, modifiedTime, webViewLink, webContentLink, driveId, capabilities(canTrash, canDelete))',
+            ]);
+
+            foreach ($response->getFiles() ?? [] as $file) {
+                $matchedFiles[] = $file;
+            }
+        }
+
+        usort($matchedFiles, function ($leftFile, $rightFile) {
+            return strcmp((string) $rightFile->getModifiedTime(), (string) $leftFile->getModifiedTime());
+        });
+
+        return $matchedFiles;
+    }
+
     public function listSharedDrives($namePrefix = null)
     {
         $drives = [];
@@ -197,6 +232,22 @@ class GoogleDriveService
         ]);
 
         return (string) $createdFile->getId();
+    }
+
+    public function createFolder(string $sharedDriveId, ?string $folderId, string $folderName): string
+    {
+        $parentId = $folderId ?? $sharedDriveId;
+
+        $createdFolder = $this->drive->files->create(new DriveFile([
+            'name' => $folderName,
+            'mimeType' => 'application/vnd.google-apps.folder',
+            'parents' => [$parentId],
+        ]), [
+            'supportsAllDrives' => true,
+            'fields' => 'id, name',
+        ]);
+
+        return (string) $createdFolder->getId();
     }
 
     public function canDeleteFile($fileId)
