@@ -322,8 +322,17 @@ class DocumentController extends Controller
             ->with('success', 'File berhasil dihapus.');
     }
 
-    public function expiringAlerts()
+    public function expiringAlerts(Request $request)
     {
+        $token = $request->query('token');
+        $expectedToken = env('API_ACCESS_TOKEN');
+
+        if ($token !== $expectedToken) {
+            return response()->json([
+                'message' => 'Unauthorized',
+            ], 401);
+        }
+
         $thresholds = [365, 180, 90, 30, 14, 7];
         $today = Carbon::now()->startOfDay();
 
