@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { COLOR_PRIMARY, formatSize } from '@/lib/utils';
 import type { DocumentsTableProps, DriveFile } from '@/types';
 import { Link } from '@inertiajs/react';
-import { Download, ExternalLink, File, FileText, Folder, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Download, File, FileText, Folder, Image as ImageIcon, Info, Trash2 } from 'lucide-react';
 
 const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -59,6 +59,7 @@ export function DocumentsTable({
     files,
     deleteProcessing,
     onDeleteSelect,
+    onOpenDetail,
 }: DocumentsTableProps) {
     return (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -196,16 +197,21 @@ export function DocumentsTable({
                                     <td className="px-6 py-4 text-slate-500">{formatDate(file.modifiedTime)}</td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex justify-end gap-2">
-                                            {file.webViewLink && (
-                                                <a
-                                                    href={file.webViewLink}
-                                                    target="_blank"
-                                                    rel="noreferrer"
+                                            {file.mimeType === 'application/vnd.google-apps.folder' ? (
+                                                <Link
+                                                    href={route('documents.index', {
+                                                        drive_id: selectedDrive?.id ?? file.driveId,
+                                                        folder_id: file.id,
+                                                    })}
                                                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
                                                 >
-                                                    <ExternalLink className="h-3.5 w-3.5" />
                                                     Lihat
-                                                </a>
+                                                </Link>
+                                            ) : (
+                                                <Button type="button" variant="outline" size="sm" onClick={() => onOpenDetail(file)}>
+                                                    <Info className="h-3.5 w-3.5" />
+                                                    Detail
+                                                </Button>
                                             )}
 
                                             {getDownloadUrl(file) && (

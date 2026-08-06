@@ -16,9 +16,10 @@ const defaultUploadValues = {
     category: 'legalitas_perizinan',
     department: 'general',
     status: 'draft',
+    issue_at: '',
     expired_at: '',
     pic_emails: '',
-} satisfies Pick<DocumentUploadFormData, 'category' | 'department' | 'status' | 'expired_at' | 'pic_emails'>;
+} satisfies Pick<DocumentUploadFormData, 'category' | 'department' | 'status' | 'issue_at' | 'expired_at' | 'pic_emails'>;
 
 export function useDocumentActions({ selectedDrive, canUpload, currentFolderId }: UseDocumentActionsParams) {
     const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
@@ -65,8 +66,8 @@ export function useDocumentActions({ selectedDrive, canUpload, currentFolderId }
         : 'Akun Anda tidak memiliki izin upload di folder ini.';
 
     const resetUploadForm = () => {
-        clearErrors('file', 'category', 'department', 'status', 'expired_at', 'pic_emails');
-        reset('file', 'category', 'department', 'status', 'expired_at', 'pic_emails');
+        clearErrors('file', 'category', 'department', 'status', 'issue_at', 'expired_at', 'pic_emails');
+        reset('file', 'category', 'department', 'status', 'issue_at', 'expired_at', 'pic_emails');
     };
 
     const handleUploadDialogOpenChange = (open: boolean) => {
@@ -104,7 +105,7 @@ export function useDocumentActions({ selectedDrive, canUpload, currentFolderId }
         setUploadOrigin(origin);
         setUploadStatus('idle');
         setUploadMessage(null);
-        clearErrors('file', 'category', 'department', 'status', 'expired_at', 'pic_emails');
+        clearErrors('file', 'category', 'department', 'status', 'issue_at', 'expired_at', 'pic_emails');
         setData({
             drive_id: selectedDrive.id,
             folder_id: currentFolderId ?? '',

@@ -1,5 +1,6 @@
 import { DocumentCreateFolderDialog } from '@/components/documents/document-create-folder-dialog';
 import { DocumentDeleteDialog } from '@/components/documents/document-delete-dialog';
+import { DocumentDetailDialog } from '@/components/documents/document-detail-dialog';
 import { DocumentToast } from '@/components/documents/document-toast';
 import { DocumentUploadDialog } from '@/components/documents/document-upload-dialog';
 import { DocumentsHeader } from '@/components/documents/documents-header';
@@ -9,9 +10,9 @@ import { useDocumentDragAndDrop } from '@/hooks/use-document-drag-and-drop';
 import { useDocumentFilters } from '@/hooks/use-document-filters';
 import { useDocumentToast } from '@/hooks/use-document-toast';
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem, type DocumentsIndexProps, type DocumentsPageProps } from '@/types';
+import { type BreadcrumbItem, type DocumentsIndexProps, type DocumentsPageProps, type DriveFile } from '@/types';
 import { Head, usePage } from '@inertiajs/react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -30,6 +31,7 @@ export default function Index({
     filters,
 }: DocumentsIndexProps) {
     const { flash } = usePage<DocumentsPageProps>().props;
+    const [detailFile, setDetailFile] = useState<DriveFile | null>(null);
 
     const currentFolderId = useMemo(() => {
         if (folderBreadcrumbs.length === 0) {
@@ -152,6 +154,21 @@ export default function Index({
                         onConfirm={confirmDelete}
                     />
 
+                    <DocumentDetailDialog
+                        open={Boolean(detailFile)}
+                        file={detailFile}
+                        processingDelete={deleteProcessing}
+                        onOpenChange={(open) => {
+                            if (!open) {
+                                setDetailFile(null);
+                            }
+                        }}
+                        onDelete={(file) => {
+                            handleFilePendingDeleteChange(file);
+                            setDetailFile(null);
+                        }}
+                    />
+
                     {isDragOver && (
                         <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-sky-500/10 p-4">
                             <div className="w-full max-w-xl rounded-2xl border-2 border-dashed border-sky-500 bg-white/95 px-6 py-8 text-center shadow-xl backdrop-blur-sm">
@@ -172,6 +189,7 @@ export default function Index({
                         files={files}
                         deleteProcessing={deleteProcessing}
                         onDeleteSelect={handleFilePendingDeleteChange}
+                        onOpenDetail={setDetailFile}
                     />
                 </div>
             </div>

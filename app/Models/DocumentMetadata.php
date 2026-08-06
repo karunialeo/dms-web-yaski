@@ -16,11 +16,13 @@ class DocumentMetadata extends Model
         'category',
         'department',
         'status',
+        'issue_at',
         'expired_at',
         'pic_emails',
     ];
 
     protected $casts = [
+        'issue_at' => 'date',
         'expired_at' => 'date',
         'pic_emails' => 'array',
     ];

@@ -51,6 +51,16 @@ export interface DriveFile {
     webContentLink?: string;
     canDelete: boolean;
     driveId?: string;
+    metadata?: DocumentMetadataSummary | null;
+}
+
+export interface DocumentMetadataSummary {
+    category: string | null;
+    department: string | null;
+    status: string | null;
+    issue_at: string | null;
+    expired_at: string | null;
+    pic_emails: string[];
 }
 
 export interface FolderBreadcrumb {
@@ -98,6 +108,7 @@ export interface DocumentUploadFormData {
     category: string;
     department: string;
     status: string;
+    issue_at: string;
     expired_at: string;
     pic_emails: string;
 }
@@ -133,7 +144,7 @@ export type DocumentUploadOrigin = 'button' | 'drag';
 
 export type DocumentUploadStatus = 'idle' | 'starting' | 'success' | 'error';
 
-export type DocumentUploadField = 'category' | 'department' | 'status' | 'expired_at' | 'pic_emails';
+export type DocumentUploadField = 'category' | 'department' | 'status' | 'issue_at' | 'expired_at' | 'pic_emails';
 
 export type DocumentUploadErrors = Partial<Record<keyof DocumentUploadFormData, string>>;
 
@@ -202,6 +213,15 @@ export interface DocumentsTableProps {
     files: DriveFile[];
     deleteProcessing: boolean;
     onDeleteSelect: (file: DriveFile) => void;
+    onOpenDetail: (file: DriveFile) => void;
+}
+
+export interface DocumentDetailDialogProps {
+    open: boolean;
+    file: DriveFile | null;
+    processingDelete: boolean;
+    onOpenChange: (open: boolean) => void;
+    onDelete: (file: DriveFile) => void;
 }
 
 export interface UseDocumentFiltersParams {

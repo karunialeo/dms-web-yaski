@@ -141,6 +141,18 @@ export function DocumentUploadDialog({
                     </div>
 
                     <div className="grid gap-2">
+                        <Label htmlFor="document-issue-at">Tanggal Diterbitkan</Label>
+                        <input
+                            id="document-issue-at"
+                            type="date"
+                            className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                            value={data.issue_at}
+                            onChange={(event) => onFieldChange('issue_at', event.target.value)}
+                        />
+                        <InputError message={errors.issue_at} />
+                    </div>
+
+                    <div className="grid gap-2">
                         <Label htmlFor="document-pic-emails">Email PIC</Label>
                         <Input
                             id="document-pic-emails"

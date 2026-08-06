@@ -74,8 +74,15 @@ class DocumentController extends Controller
                     });
                 }
 
-                $files = array_map(function ($file) {
+                $fileIds = array_map(fn($file) => $file->getId(), $driveFiles);
+                $metadataByGoogleFileId = DocumentMetadata::query()
+                    ->whereIn('google_file_id', $fileIds)
+                    ->get()
+                    ->keyBy('google_file_id');
+
+                $files = array_map(function ($file) use ($metadataByGoogleFileId) {
                     $capabilities = $file->getCapabilities();
+                    $metadata = $metadataByGoogleFileId->get($file->getId());
 
                     return [
                         'id' => $file->getId(),
@@ -86,6 +93,14 @@ class DocumentController extends Controller
                         'webViewLink' => $file->getWebViewLink(),
                         'webContentLink' => $file->getWebContentLink(),
                         'canDelete' => (bool) ($capabilities?->getCanTrash() || $capabilities?->getCanDelete()),
+                        'metadata' => $metadata ? [
+                            'category' => $metadata->category,
+                            'department' => $metadata->department,
+                            'status' => $metadata->status,
+                            'issue_at' => $metadata->issue_at?->toDateString(),
+                            'expired_at' => $metadata->expired_at?->toDateString(),
+                            'pic_emails' => $metadata->pic_emails ?? [],
+                        ] : null,
                     ];
                 }, $driveFiles);
                 $folderBreadcrumbs = $driveService->getFolderBreadcrumbs($driveId, $folderId);
@@ -100,8 +115,15 @@ class DocumentController extends Controller
                 });
             }
 
-            $files = array_map(function ($file) {
+            $fileIds = array_map(fn($file) => $file->getId(), $driveFiles);
+            $metadataByGoogleFileId = DocumentMetadata::query()
+                ->whereIn('google_file_id', $fileIds)
+                ->get()
+                ->keyBy('google_file_id');
+
+            $files = array_map(function ($file) use ($metadataByGoogleFileId) {
                 $capabilities = $file->getCapabilities();
+                $metadata = $metadataByGoogleFileId->get($file->getId());
 
                 return [
                     'id' => $file->getId(),
@@ -113,6 +135,14 @@ class DocumentController extends Controller
                     'webContentLink' => $file->getWebContentLink(),
                     'canDelete' => (bool) ($capabilities?->getCanTrash() || $capabilities?->getCanDelete()),
                     'driveId' => $file->getDriveId(),
+                    'metadata' => $metadata ? [
+                        'category' => $metadata->category,
+                        'department' => $metadata->department,
+                        'status' => $metadata->status,
+                        'issue_at' => $metadata->issue_at?->toDateString(),
+                        'expired_at' => $metadata->expired_at?->toDateString(),
+                        'pic_emails' => $metadata->pic_emails ?? [],
+                    ] : null,
                 ];
             }, $driveFiles);
         } else {
@@ -143,6 +173,7 @@ class DocumentController extends Controller
             'category' => ['required', 'string'],
             'department' => ['required', 'string'],
             'status' => ['required', 'string'],
+            'issue_at' => ['nullable', 'date'],
             'expired_at' => ['nullable', 'date'],
             'pic_emails' => ['nullable', 'string'],
         ]);
@@ -176,6 +207,7 @@ class DocumentController extends Controller
                 'category' => $validated['category'],
                 'department' => $validated['department'],
                 'status' => $validated['status'],
+                'issue_at' => $validated['issue_at'] ?? null,
                 'expired_at' => $validated['expired_at'] ?? null,
                 'pic_emails' => $picEmails,
             ]);
