@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { COLOR_PRIMARY } from '@/lib/utils';
 import type { DocumentDetailDialogProps } from '@/types';
 import { Download, ExternalLink, Trash2 } from 'lucide-react';
+import { documentCategoryOptions, documentDepartmentOptions, documentStatusOptions } from './document-options';
 
 const toReadableValue = (value: string | null | undefined) => {
     if (!value) {
@@ -13,6 +14,14 @@ const toReadableValue = (value: string | null | undefined) => {
         .split('_')
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ');
+};
+
+const getOptionLabel = (value: string | null | undefined, options: Array<{ value: string; label: string }>) => {
+    if (!value) {
+        return '-';
+    }
+
+    return options.find((option) => option.value === value)?.label ?? toReadableValue(value);
 };
 
 const formatDate = (value: string | null | undefined) => {
@@ -63,15 +72,15 @@ export function DocumentDetailDialog({ open, file, processingDelete, onOpenChang
                     <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
                         <div className="grid grid-cols-[140px_1fr] gap-2">
                             <span className="font-medium text-slate-600">Kategori</span>
-                            <span className="text-slate-800">{toReadableValue(metadata?.category)}</span>
+                            <span className="text-slate-800">{getOptionLabel(metadata?.category, documentCategoryOptions)}</span>
                         </div>
                         <div className="grid grid-cols-[140px_1fr] gap-2">
                             <span className="font-medium text-slate-600">Department</span>
-                            <span className="text-slate-800">{toReadableValue(metadata?.department)}</span>
+                            <span className="text-slate-800">{getOptionLabel(metadata?.department, documentDepartmentOptions)}</span>
                         </div>
                         <div className="grid grid-cols-[140px_1fr] gap-2">
                             <span className="font-medium text-slate-600">Status</span>
-                            <span className="text-slate-800">{toReadableValue(metadata?.status)}</span>
+                            <span className="text-slate-800">{getOptionLabel(metadata?.status, documentStatusOptions)}</span>
                         </div>
                         <div className="grid grid-cols-[140px_1fr] gap-2">
                             <span className="font-medium text-slate-600">Tanggal Diterbitkan</span>

@@ -1,3 +1,4 @@
+import { documentCategoryOptions, documentDepartmentOptions } from '@/components/documents/document-options';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type DashboardPageProps } from '@/types';
 import { Head, router } from '@inertiajs/react';
@@ -13,6 +14,18 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 export default function Dashboard({ stats, expiringDocs, recentDocs }: DashboardPageProps) {
     const [keyword, setKeyword] = useState('');
+
+    const normalizeOptionValue = (value: string) => value.trim().toLowerCase().replace(/\s+/g, '_');
+
+    const getOptionLabel = (value: string | null, options: Array<{ value: string; label: string }>, fallback: string) => {
+        if (!value || value.trim() === '') {
+            return fallback;
+        }
+
+        const normalizedValue = normalizeOptionValue(value);
+
+        return options.find((option) => normalizeOptionValue(option.value) === normalizedValue)?.label ?? value;
+    };
 
     const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -37,8 +50,8 @@ export default function Dashboard({ stats, expiringDocs, recentDocs }: Dashboard
     };
 
     const formatCategoryDepartment = (category: string | null, department: string | null) => {
-        const categoryText = category && category.trim() !== '' ? category : 'Tanpa Kategori';
-        const departmentText = department && department.trim() !== '' ? department : 'Tanpa Departemen';
+        const categoryText = getOptionLabel(category, documentCategoryOptions, 'Tanpa Kategori');
+        const departmentText = getOptionLabel(department, documentDepartmentOptions, 'Tanpa Departemen');
 
         return `${categoryText} (${departmentText})`;
     };
@@ -48,7 +61,7 @@ export default function Dashboard({ stats, expiringDocs, recentDocs }: Dashboard
             <Head title="Dashboard" />
 
             <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-4">
-                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <form onSubmit={handleSearchSubmit} className="flex w-full items-center gap-3">
                         <div className="relative w-full">
                             <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
