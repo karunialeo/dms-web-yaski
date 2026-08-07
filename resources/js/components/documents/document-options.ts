@@ -14,7 +14,9 @@ export const documentDepartmentOptions: DocumentOption[] = [
     { value: 'general', label: 'General' },
     { value: 'finance', label: 'Finance' },
     { value: 'ict', label: 'ICT' },
-    { value: 'hc', label: 'HC' },
+    { value: 'hc_ga', label: 'HC & GA' },
+    { value: 'misi', label: 'Misi' },
+    { value: 'heartline', label: 'Heartline' },
 ];
 
 export const documentStatusOptions: DocumentOption[] = [

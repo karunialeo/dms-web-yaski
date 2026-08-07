@@ -8,9 +8,11 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use Laravel\Socialite\Two\GoogleProvider;
 use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Facades\Socialite;
 
@@ -22,7 +24,6 @@ class AuthenticatedSessionController extends Controller
     public function create(Request $request): Response
     {
         return Inertia::render('auth/login', [
-            'canResetPassword' => Route::has('password.request'),
             'status' => $request->session()->get('status'),
         ]);
     }
@@ -44,7 +45,15 @@ class AuthenticatedSessionController extends Controller
      */
     public function redirectToGoogle(): RedirectResponse
     {
-        return Socialite::driver('google')
+        $driver = Socialite::driver('google');
+
+        if (! $driver instanceof GoogleProvider) {
+            return to_route('login')->withErrors([
+                'email' => 'Layanan login Google sedang tidak tersedia.',
+            ]);
+        }
+
+        return $driver
             ->scopes(['https://www.googleapis.com/auth/drive'])
             ->with([
                 'access_type' => 'offline',
@@ -60,30 +69,39 @@ class AuthenticatedSessionController extends Controller
     {
         $driver = Socialite::driver('google');
 
+        if (! $driver instanceof GoogleProvider) {
+            return to_route('login')->withErrors([
+                'email' => 'Layanan login Google sedang tidak tersedia.',
+            ]);
+        }
+
         try {
             $googleUser = $driver->user();
         } catch (InvalidStateException) {
             $googleUser = $driver->stateless()->user();
         }
 
-        $user = User::where('google_id', $googleUser->getId())
-            ->orWhere('email', $googleUser->getEmail())
-            ->first();
+        $email = $googleUser->getEmail();
 
-        if (! $user) {
+        if (! $email) {
             return to_route('login')->withErrors([
-                'email' => 'Akun tidak terdaftar. Silakan login dengan email/password atau hubungi admin.',
+                'email' => 'Akun Google tidak memiliki email yang valid.',
             ]);
         }
 
-        // Update selalu token tiap kali login
-        $user->fill([
-            'google_id' => $googleUser->getId() ?? $user->google_id,
-            'avatar' => $googleUser->getAvatar() ?? $user->avatar,
-            'google_access_token' => $googleUser->token,
-            'google_refresh_token' => $googleUser->refreshToken ?? $user->google_refresh_token, // Jangan ditimpa null
-            'email_verified_at' => $user->email_verified_at ?? now(),
-        ])->save();
+        $user = User::firstOrNew(['email' => $email]);
+
+        if (! $user->exists) {
+            $user->password = Hash::make(Str::random(64));
+            $user->email_verified_at = now();
+        }
+
+        $user->name = $googleUser->getName() ?: $user->name ?: $email;
+        $user->google_id = $googleUser->getId() ?: $user->google_id;
+        $user->google_access_token = $googleUser->token;
+        $user->google_refresh_token = $googleUser->refreshToken ?: $user->google_refresh_token;
+        $user->avatar = $googleUser->getAvatar() ?: $user->avatar;
+        $user->save();
 
         Auth::login($user, true);
 

@@ -42,13 +42,6 @@ export default function Welcome() {
                                     >
                                         Login
                                     </Link>
-                                    <Link
-                                        href={route('register')}
-                                        className="rounded-full px-5 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
-                                        style={{ backgroundColor: COLOR_PRIMARY }}
-                                    >
-                                        Register
-                                    </Link>
                                 </>
                             )}
                         </nav>

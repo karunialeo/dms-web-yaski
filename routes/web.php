@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentController;
 
 Route::get('/', function () {
@@ -9,9 +10,7 @@ Route::get('/', function () {
 })->name('home');
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('dashboard', function () {
-        return Inertia::render('dashboard');
-    })->name('dashboard');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('documents', [DocumentController::class, 'index'])->name('documents.index');
     Route::post('documents/folders', [DocumentController::class, 'storeFolder'])->name('documents.folders.store');

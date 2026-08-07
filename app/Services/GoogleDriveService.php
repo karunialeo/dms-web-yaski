@@ -298,4 +298,27 @@ class GoogleDriveService
 
         throw new \RuntimeException('User has no permission to delete or trash this file.');
     }
+
+    public function getFileDetailsByIds(array $fileIds): array
+    {
+        $detailsById = [];
+
+        foreach (array_unique(array_filter($fileIds)) as $fileId) {
+            try {
+                $file = $this->drive->files->get((string) $fileId, [
+                    'supportsAllDrives' => true,
+                    'fields' => 'id, name, webViewLink',
+                ]);
+
+                $detailsById[(string) $file->getId()] = [
+                    'name' => $file->getName(),
+                    'webViewLink' => $file->getWebViewLink(),
+                ];
+            } catch (\Throwable $exception) {
+                continue;
+            }
+        }
+
+        return $detailsById;
+    }
 }

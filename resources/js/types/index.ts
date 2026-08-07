@@ -100,6 +100,30 @@ export interface DocumentsIndexProps {
     filters?: DocumentsFilters;
 }
 
+export interface DashboardStats {
+    totalDocuments: number;
+    pendingReview: number;
+    expiredDocuments: number;
+}
+
+export interface DashboardDocument {
+    id: number;
+    google_file_id: string;
+    fileName: string;
+    webViewLink: string | null;
+    category: string | null;
+    department: string | null;
+    status: string | null;
+    expired_at: string | null;
+    created_at: string | null;
+}
+
+export interface DashboardPageProps {
+    stats: DashboardStats;
+    expiringDocs: DashboardDocument[];
+    recentDocs: DashboardDocument[];
+}
+
 export interface DocumentUploadFormData {
     [key: string]: FormDataConvertible;
     drive_id: string;
