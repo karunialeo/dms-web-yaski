@@ -333,10 +333,12 @@ class DocumentController extends Controller
             ], 401);
         }
 
+        $driveService = app(GoogleDriveService::class);
         $thresholds = [365, 180, 90, 30, 14, 7];
         $today = Carbon::now()->startOfDay();
 
         $documents = DocumentMetadata::whereNotNull('expired_at')->get();
+        $fileDetailsById = $driveService->getFileDetailsByIds($documents->pluck('google_file_id')->all());
 
         $results = [];
 
@@ -347,6 +349,7 @@ class DocumentController extends Controller
                 $results[] = [
                     'id' => $document->id,
                     'google_file_id' => $document->google_file_id,
+                    'file_name' => $fileDetailsById[$document->google_file_id]['name'] ?? null,
                     'document_number' => $document->document_number,
                     'category' => $document->category,
                     'department' => $document->department,

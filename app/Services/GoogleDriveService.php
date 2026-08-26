@@ -14,10 +14,18 @@ class GoogleDriveService
     protected $client;
     protected $drive;
 
-    public function __construct()
+    public function __construct(?User $user = null)
     {
-        /** @var User $user */
-        $user = Auth::user();
+        /** @var User|null $user */
+        $user = $user ?? Auth::user();
+        $user = $user ?? User::query()
+            ->whereNotNull('google_refresh_token')
+            ->orWhereNotNull('google_access_token')
+            ->first();
+
+        if (!$user) {
+            throw new \RuntimeException('No Google account is configured.');
+        }
 
         $this->client = new Client();
         $this->client->setClientId(config('services.google.client_id'));
