@@ -41,4 +41,6 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
 
+    'api_access_token' => env('API_ACCESS_TOKEN'),
+
 ];

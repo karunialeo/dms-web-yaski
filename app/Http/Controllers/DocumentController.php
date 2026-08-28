@@ -325,9 +325,9 @@ class DocumentController extends Controller
     public function expiringAlerts(Request $request)
     {
         $token = $request->query('token');
-        $expectedToken = env('API_ACCESS_TOKEN');
+        $expectedToken = (string) config('services.api_access_token');
 
-        if ($token !== $expectedToken) {
+        if (!$expectedToken || !is_string($token) || !hash_equals($expectedToken, $token)) {
             return response()->json([
                 'message' => 'Unauthorized',
             ], 401);
