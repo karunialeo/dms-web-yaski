@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { COLOR_PRIMARY, formatSize } from '@/lib/utils';
 import type { DocumentsTableProps, DriveFile } from '@/types';
 import { Link } from '@inertiajs/react';
-import { Download, File, FileText, Folder, Image as ImageIcon, Info, Trash2 } from 'lucide-react';
+import { Download, File, FileText, Folder, FolderSymlink, HardDrive, Image as ImageIcon, Info, Trash2 } from 'lucide-react';
 
 const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -54,6 +54,7 @@ export function DocumentsTable({
     isDriveRootView,
     isGlobalSearchView,
     sharedDrives,
+    sharedFolders,
     selectedDrive,
     folderBreadcrumbs,
     files,
@@ -127,12 +128,13 @@ export function DocumentsTable({
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {isDriveRootView ? (
-                            sharedDrives.length > 0 ? (
-                                sharedDrives.map((drive) => (
+                            sharedDrives.length > 0 || sharedFolders.length > 0 ? (
+                                <>
+                                {sharedDrives.map((drive) => (
                                     <tr key={drive.id} className="transition hover:bg-slate-50/50">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <Folder className="h-5 w-5 fill-sky-100 text-sky-500" />
+                                                <HardDrive className="h-5 w-5 fill-sky-100 text-sky-600" />
                                                 <Link
                                                     href={route('documents.index', { drive_id: drive.id })}
                                                     className="font-medium text-slate-800 hover:underline"
@@ -153,7 +155,34 @@ export function DocumentsTable({
                                             </Link>
                                         </td>
                                     </tr>
-                                ))
+                                ))}
+                                {sharedFolders.map((folder) => (
+                                    <tr key={folder.id} className="transition hover:bg-slate-50/50">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <FolderSymlink className="h-5 w-5 fill-amber-100 text-amber-600" />
+                                                <Link
+                                                    href={route('documents.index', { folder_id: folder.id })}
+                                                    className="font-medium text-slate-800 hover:underline"
+                                                    style={{ color: COLOR_PRIMARY }}
+                                                >
+                                                    {folder.name}
+                                                </Link>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-slate-500">Folder Dibagikan</td>
+                                        <td className="px-6 py-4 text-slate-500">
+                                            <Link
+                                                href={route('documents.index', { folder_id: folder.id })}
+                                                className="inline-flex items-center gap-1.5 rounded-lg border border-transparent px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90"
+                                                style={{ backgroundColor: COLOR_PRIMARY }}
+                                            >
+                                                Buka
+                                            </Link>
+                                        </td>
+                                    </tr>
+                                ))}
+                                </>
                             ) : (
                                 <tr>
                                     <td colSpan={3} className="px-6 py-12 text-center text-slate-500">
@@ -183,7 +212,19 @@ export function DocumentsTable({
                                                 </Link>
                                             ) : (
                                                 <div>
-                                                    <span className="font-medium text-slate-800">{file.name}</span>
+                                                    {file.webViewLink ? (
+                                                        <a
+                                                            href={file.webViewLink}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="font-medium text-slate-800 hover:underline"
+                                                            style={{ color: COLOR_PRIMARY }}
+                                                        >
+                                                            {file.name}
+                                                        </a>
+                                                    ) : (
+                                                        <span className="font-medium text-slate-800">{file.name}</span>
+                                                    )}
                                                     {isGlobalSearchView && file.driveId && (
                                                         <p className="mt-1 text-xs text-slate-500">Shared Drive ID: {file.driveId}</p>
                                                     )}

@@ -22,6 +22,11 @@ class DocumentController extends Controller
             $folderId = null;
         }
 
+        if (!$driveId && $folderId) {
+            $driveId = $folderId;
+            $folderId = null;
+        }
+
         if (is_string($search)) {
             $search = trim($search);
 
@@ -39,6 +44,7 @@ class DocumentController extends Controller
         }
 
         $sharedDrives = [];
+        $sharedFolders = [];
 
         $selectedDrive = null;
         $files = [];
@@ -66,7 +72,12 @@ class DocumentController extends Controller
             $selectedDrive = $driveService->getSharedDrive($driveId);
 
             if ($selectedDrive) {
-                $driveFiles = $driveService->listFiles($driveId, $folderId, $search);
+                $driveFiles = $driveService->listFiles(
+                    $driveId,
+                    $folderId,
+                    $search,
+                    ($selectedDrive['type'] ?? null) === 'shared_subfolder'
+                );
 
                 if ($hasMetadataFilter) {
                     $driveFiles = array_filter($driveFiles, function ($file) use ($validGoogleFileIds) {
@@ -147,10 +158,12 @@ class DocumentController extends Controller
             }, $driveFiles);
         } else {
             $sharedDrives = $driveService->listSharedDrives('DMS');
+            $sharedFolders = $driveService->listSharedSubfoldersByPattern();
         }
 
         return Inertia::render('documents/index', [
             'sharedDrives' => $sharedDrives,
+            'sharedFolders' => $sharedFolders,
             'selectedDrive' => $selectedDrive,
             'canUpload' => $canUpload,
             'files' => $files,

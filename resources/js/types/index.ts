@@ -73,6 +73,13 @@ export interface SharedDrive {
     name: string;
 }
 
+export interface SharedFolder {
+    id: string;
+    name: string;
+    webViewLink?: string | null;
+    type: 'shared_subfolder';
+}
+
 export interface DocumentsFilters {
     search?: string;
     category?: string;
@@ -92,6 +99,7 @@ export interface DocumentsPageProps {
 
 export interface DocumentsIndexProps {
     sharedDrives?: SharedDrive[];
+    sharedFolders?: SharedFolder[];
     selectedDrive?: SharedDrive | null;
     canUpload?: boolean;
     files: DriveFile[];
@@ -232,6 +240,7 @@ export interface DocumentsTableProps {
     isDriveRootView: boolean;
     isGlobalSearchView: boolean;
     sharedDrives: SharedDrive[];
+    sharedFolders: SharedFolder[];
     selectedDrive: SharedDrive | null;
     folderBreadcrumbs: FolderBreadcrumb[];
     files: DriveFile[];

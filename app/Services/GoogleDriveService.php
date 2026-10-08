@@ -43,7 +43,7 @@ class GoogleDriveService
         $this->drive = new Drive($this->client);
     }
 
-    public function listFiles($sharedDriveId, $folderId = null, $searchKeyword = null)
+    public function listFiles($sharedDriveId, $folderId = null, $searchKeyword = null, $isStandaloneFolder = false)
     {
         // Kalo ga ada folderId spesifik, tampilin root dari Shared Drive
         $parentId = !empty($folderId) ? $folderId : $sharedDriveId;
@@ -58,12 +58,17 @@ class GoogleDriveService
 
         $optParams = [
             'q' => $query,
-            'corpora' => 'drive', // Wajib diset buat Shared Drive
-            'driveId' => $sharedDriveId,
             'includeItemsFromAllDrives' => true, // Wajib diset buat Shared Drive
             'supportsAllDrives' => true, // Wajib diset buat Shared Drive
             'fields' => 'files(id, name, mimeType, size, modifiedTime, webViewLink, webContentLink, capabilities(canTrash, canDelete))',
         ];
+
+        if ($isStandaloneFolder) {
+            $optParams['corpora'] = 'allDrives';
+        } else {
+            $optParams['corpora'] = 'drive'; // Wajib diset buat Shared Drive
+            $optParams['driveId'] = $sharedDriveId;
+        }
 
         if (!$hasSearchKeyword) {
             $optParams['orderBy'] = 'folder, name';
@@ -143,6 +148,45 @@ class GoogleDriveService
         return $drives;
     }
 
+    public function listSharedSubfoldersByPattern()
+    {
+        $folders = [];
+        $pageToken = null;
+
+        do {
+            $optParams = [
+                'q' => "mimeType='application/vnd.google-apps.folder' and sharedWithMe=true",
+                'pageSize' => 100,
+                'supportsAllDrives' => true,
+                'includeItemsFromAllDrives' => true,
+                'fields' => 'nextPageToken, files(id, name, webViewLink)',
+            ];
+
+            if ($pageToken) {
+                $optParams['pageToken'] = $pageToken;
+            }
+
+            $response = $this->drive->files->listFiles($optParams);
+
+            foreach ($response->getFiles() ?? [] as $folder) {
+                if (!preg_match('/^\d{1,2}\.\d{1,2}\./', $folder->getName())) {
+                    continue;
+                }
+
+                $folders[] = [
+                    'id' => $folder->getId(),
+                    'name' => $folder->getName(),
+                    'webViewLink' => $folder->getWebViewLink(),
+                    'type' => 'shared_subfolder',
+                ];
+            }
+
+            $pageToken = $response->getNextPageToken();
+        } while ($pageToken);
+
+        return $folders;
+    }
+
     public function getSharedDrive($sharedDriveId)
     {
         if (!$sharedDriveId) {
@@ -157,6 +201,28 @@ class GoogleDriveService
             return [
                 'id' => $drive->getId(),
                 'name' => $drive->getName(),
+            ];
+        } catch (\Throwable $exception) {
+            return $this->getStandaloneFolder($sharedDriveId);
+        }
+    }
+
+    protected function getStandaloneFolder($folderId)
+    {
+        try {
+            $folder = $this->drive->files->get($folderId, [
+                'supportsAllDrives' => true,
+                'fields' => 'id, name, mimeType',
+            ]);
+
+            if ($folder->getMimeType() !== 'application/vnd.google-apps.folder') {
+                return null;
+            }
+
+            return [
+                'id' => $folder->getId(),
+                'name' => $folder->getName(),
+                'type' => 'shared_subfolder',
             ];
         } catch (\Throwable $exception) {
             return null;
@@ -179,11 +245,20 @@ class GoogleDriveService
                 return (bool) $folder->getCapabilities()?->getCanAddChildren();
             }
 
-            $drive = $this->drive->drives->get($sharedDriveId, [
-                'fields' => 'id, capabilities(canAddChildren)',
-            ]);
+            try {
+                $drive = $this->drive->drives->get($sharedDriveId, [
+                    'fields' => 'id, capabilities(canAddChildren)',
+                ]);
 
-            return (bool) $drive->getCapabilities()?->getCanAddChildren();
+                return (bool) $drive->getCapabilities()?->getCanAddChildren();
+            } catch (\Throwable $exception) {
+                $folder = $this->drive->files->get($sharedDriveId, [
+                    'supportsAllDrives' => true,
+                    'fields' => 'id, capabilities(canAddChildren)',
+                ]);
+
+                return (bool) $folder->getCapabilities()?->getCanAddChildren();
+            }
         } catch (\Throwable $exception) {
             return false;
         }

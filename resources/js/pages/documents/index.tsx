@@ -23,6 +23,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 export default function Index({
     sharedDrives = [],
+    sharedFolders = [],
     selectedDrive = null,
     canUpload = false,
     files,
@@ -184,6 +185,7 @@ export default function Index({
                         isDriveRootView={isDriveRootView}
                         isGlobalSearchView={isGlobalSearchView}
                         sharedDrives={sharedDrives}
+                        sharedFolders={sharedFolders}
                         selectedDrive={selectedDrive}
                         folderBreadcrumbs={folderBreadcrumbs}
                         files={files}
