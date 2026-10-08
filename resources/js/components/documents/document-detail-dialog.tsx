@@ -2,7 +2,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { COLOR_PRIMARY } from '@/lib/utils';
 import type { DocumentDetailDialogProps } from '@/types';
-import { Download, ExternalLink, Trash2 } from 'lucide-react';
+import { Download, ExternalLink, Pencil, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { DocumentMetadataEditForm } from './document-metadata-edit-form';
 import { documentCategoryOptions, documentDepartmentOptions, documentStatusOptions } from './document-options';
 
 const toReadableValue = (value: string | null | undefined) => {
@@ -56,19 +58,33 @@ const getDownloadUrl = (fileId: string, webContentLink?: string) => {
 };
 
 export function DocumentDetailDialog({ open, file, processingDelete, onOpenChange, onDelete }: DocumentDetailDialogProps) {
+    const [isEditing, setIsEditing] = useState(false);
     const metadata = file?.metadata;
     const picEmails = metadata?.pic_emails?.length ? metadata.pic_emails.join(', ') : '-';
     const canDownload = Boolean(file && file.mimeType !== 'application/vnd.google-apps.folder');
 
+    const handleOpenChange = (nextOpen: boolean) => {
+        if (!nextOpen) {
+            setIsEditing(false);
+        }
+
+        onOpenChange(nextOpen);
+    };
+
+    const handleSaved = () => {
+        setIsEditing(false);
+        onOpenChange(false);
+    };
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Detail Dokumen</DialogTitle>
                     <DialogDescription>{file?.name ?? 'Metadata dokumen'}</DialogDescription>
                 </DialogHeader>
 
-                {file && (
+                {file && !isEditing && (
                     <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
                         <div className="grid grid-cols-[140px_1fr] gap-2">
                             <span className="font-medium text-slate-600">Kategori</span>
@@ -97,6 +113,9 @@ export function DocumentDetailDialog({ open, file, processingDelete, onOpenChang
                     </div>
                 )}
 
+                {file && isEditing && <DocumentMetadataEditForm file={file} onCancel={() => setIsEditing(false)} onSaved={handleSaved} />}
+
+                {!isEditing && (
                 <DialogFooter className="sm:justify-between">
                     <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
                         Tutup
@@ -126,6 +145,13 @@ export function DocumentDetailDialog({ open, file, processingDelete, onOpenChang
                         )}
 
                         {file && (
+                            <Button type="button" variant="outline" onClick={() => setIsEditing(true)}>
+                                <Pencil className="h-4 w-4" />
+                                Edit
+                            </Button>
+                        )}
+
+                        {file && (
                             <Button
                                 type="button"
                                 variant="destructive"
@@ -139,6 +165,7 @@ export function DocumentDetailDialog({ open, file, processingDelete, onOpenChang
                         )}
                     </div>
                 </DialogFooter>
+                )}
             </DialogContent>
         </Dialog>
     );

@@ -290,6 +290,47 @@ class DocumentController extends Controller
             ->with('success', 'Folder berhasil ditambahkan.');
     }
 
+    public function updateMetadata(Request $request, GoogleDriveService $driveService, string $fileId)
+    {
+        $validated = $request->validate([
+            'category' => ['required', 'string'],
+            'department' => ['required', 'string'],
+            'status' => ['required', 'string'],
+            'issue_at' => ['nullable', 'date'],
+            'expired_at' => ['nullable', 'date'],
+            'pic_emails' => ['nullable', 'string'],
+        ]);
+
+        if (empty($driveService->getFileDetailsByIds([$fileId]))) {
+            return back()->with('error', 'File tidak ditemukan atau tidak bisa diakses.');
+        }
+
+        $picEmails = null;
+        if (!empty($validated['pic_emails'])) {
+            $picEmails = array_values(array_filter(array_map('trim', explode(',', $validated['pic_emails']))));
+        }
+
+        try {
+            DocumentMetadata::updateOrCreate(
+                ['google_file_id' => $fileId],
+                [
+                    'category' => $validated['category'],
+                    'department' => $validated['department'],
+                    'status' => $validated['status'],
+                    'issue_at' => $validated['issue_at'] ?? null,
+                    'expired_at' => $validated['expired_at'] ?? null,
+                    'pic_emails' => $picEmails,
+                ]
+            );
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return back()->with('error', 'Simpan metadata gagal. Silakan coba lagi.');
+        }
+
+        return back()->with('success', 'Metadata dokumen berhasil disimpan.');
+    }
+
     public function destroy(Request $request, GoogleDriveService $driveService, string $fileId)
     {
         $validated = $request->validate([

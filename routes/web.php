@@ -15,6 +15,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('documents', [DocumentController::class, 'index'])->name('documents.index');
     Route::post('documents/folders', [DocumentController::class, 'storeFolder'])->name('documents.folders.store');
     Route::post('documents/upload', [DocumentController::class, 'upload'])->name('documents.upload');
+    Route::put('documents/{fileId}/metadata', [DocumentController::class, 'updateMetadata'])->name('documents.metadata.update');
     Route::delete('documents/{fileId}', [DocumentController::class, 'destroy'])->name('documents.destroy');
 });
 
